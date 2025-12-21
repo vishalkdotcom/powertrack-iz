@@ -72,6 +72,7 @@ Retrieves records modified after a certain time.
 *   **ORM:** `drizzle-orm`
 *   **Validation:** `zod` + `@hono/zod-validator`
 *   **Runtime:** `tsx` (for dev) / Node.js (prod)
+*   **Package Manager:** `pnpm`
 
 ## 4. Environment Variables
 

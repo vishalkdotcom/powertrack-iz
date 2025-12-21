@@ -11,9 +11,9 @@
 
 - [ ] **2. Backend Setup (Hono)**
     - [ ] Create `server/` directory.
-    - [ ] `npm init -y` inside `server/`.
-    - [ ] Install dependencies: `npm i hono drizzle-orm postgres @neondatabase/serverless zod dotenv`.
-    - [ ] Install dev-deps: `npm i -D drizzle-kit tsx @types/node typescript`.
+    - [ ] `cd server && pnpm init`
+    - [ ] Install dependencies: `pnpm add hono drizzle-orm postgres @neondatabase/serverless zod dotenv`.
+    - [ ] Install dev-deps: `pnpm add -D drizzle-kit tsx @types/node typescript`.
     - [ ] Create `server/src/db/schema.ts` with Readings and Bills tables.
     - [ ] Create `server/src/index.ts` (Hono app).
     - [ ] Implement `POST /api/sync/push`.

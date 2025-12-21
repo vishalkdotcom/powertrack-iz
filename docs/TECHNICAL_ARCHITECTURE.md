@@ -6,14 +6,14 @@ The application adopts a classic **Client-Server** model with a "Local-First" tw
 
 ```mermaid
 graph TD
-    subgraph Client [KMP App (Android/Desktop)]
+    subgraph Client ["KMP App (Android/Desktop)"]
         UI[Compose UI] --> VM[ViewModel]
         VM --> Repo[Repository]
         Repo --> LocalDB[(Room DB)]
         Repo --> API[Ktor Client]
     end
 
-    subgraph Server [Backend API]
+    subgraph Server ["Backend API"]
         API <--> REST[Hono REST API]
         REST --> ORM[Drizzle ORM]
         ORM --> RemoteDB[(Neon Postgres)]

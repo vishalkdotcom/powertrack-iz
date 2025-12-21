@@ -2,7 +2,7 @@
 
 ## 1. Neon Postgres Schema (Managed by Drizzle ORM)
 
-The database schema will be defined in TypeScript using Drizzle ORM.
+The database schema will be defined in TypeScript using Drizzle ORM. We prioritize normalization to avoid data redundancy.
 
 ### 1.1 Users Table
 (Optional for V1 single-user mode, but good practice to include)
@@ -30,15 +30,15 @@ export const readings = pgTable('readings', {
   groundFloorReading: integer('ground_floor_reading').notNull(),
   firstFloorReading: integer('first_floor_reading').notNull(),
 
-  // Computed (Optional to store, or compute on fly)
-  totalConsumption: integer('total_consumption'),
+  // Note: 'totalConsumption' is NOT stored.
+  // It is calculated on the fly as (groundFloorReading + firstFloorReading).
 
   notes: text('notes'),
   imageUrl: text('image_url'),
 
   // Sync Meta
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(), // Triggers should update this
+  updatedAt: timestamp('updated_at').defaultNow(), // Logic to auto-update this on changes
 });
 ```
 
@@ -57,7 +57,8 @@ export const bills = pgTable('bills', {
   amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
   unitsConsumed: integer('units_consumed').notNull(),
 
-  isPaid: boolean('is_paid').default(false),
+  // Payment Status
+  // 'isPaid' is derived: (paidDate !== null)
   paidDate: date('paid_date'),
 
   createdAt: timestamp('created_at').defaultNow(),
@@ -77,6 +78,7 @@ data class ReadingEntity(
     val groundFloorReading: Int,
     val firstFloorReading: Int,
     val notes: String?,
+    // No totalConsumption stored locally either, computed in Domain/UI layer.
 
     // Sync Status
     val isDirty: Boolean = false, // True if modified locally and not yet pushed
@@ -87,5 +89,5 @@ data class ReadingEntity(
 ## 3. Migration Strategy (Drizzle)
 
 *   We will use `drizzle-kit` to generate SQL migrations.
-*   Command: `npx drizzle-kit generate:pg`
-*   Command: `npx drizzle-kit push:pg` (or run migrations via code)
+*   Command: `pnpm drizzle-kit generate:pg`
+*   Command: `pnpm drizzle-kit push:pg` (or run migrations via code)
