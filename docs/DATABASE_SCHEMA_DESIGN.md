@@ -1,70 +1,74 @@
 # Database Schema Design
 
-## 1. Neon Postgres Schema (Remote)
+## 1. Neon Postgres Schema (Managed by Drizzle ORM)
 
-This schema adapts the previous NocoDB structure to standard SQL.
+The database schema will be defined in TypeScript using Drizzle ORM. We prioritize normalization to avoid data redundancy.
 
-```sql
--- Users table (Optional, if multiple users share the DB)
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+### 1.1 Users Table
+(Optional for V1 single-user mode, but good practice to include)
 
--- Meter Readings Table
-CREATE TABLE IF NOT EXISTS readings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id), -- Optional
-    date DATE NOT NULL,
+```typescript
+// schema.ts
+export const users = pgTable('users', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+```
 
-    -- Dual Meter Support
-    ground_floor_reading INTEGER NOT NULL,
-    first_floor_reading INTEGER NOT NULL,
+### 1.2 Readings Table
 
-    -- Calculated/Derived (can be computed, but storing for history is safe)
-    total_consumption INTEGER GENERATED ALWAYS AS (ground_floor_reading + first_floor_reading) STORED,
+```typescript
+// schema.ts
+export const readings = pgTable('readings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id),
 
-    notes TEXT,
-    image_url TEXT, -- Link to scanned meter image if uploaded
+  date: date('date').notNull(),
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  // Meter Values
+  groundFloorReading: integer('ground_floor_reading').notNull(),
+  firstFloorReading: integer('first_floor_reading').notNull(),
 
-    -- Constraints
-    CONSTRAINT positive_readings CHECK (ground_floor_reading >= 0 AND first_floor_reading >= 0)
-);
+  // Note: 'totalConsumption' is NOT stored.
+  // It is calculated on the fly as (groundFloorReading + firstFloorReading).
 
--- Bills Table
-CREATE TABLE IF NOT EXISTS bills (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id), -- Optional
+  notes: text('notes'),
+  imageUrl: text('image_url'),
 
-    bill_number VARCHAR(50),
-    billing_period VARCHAR(7), -- Format: "YYYY-MM"
-    due_date DATE,
+  // Sync Meta
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(), // Logic to auto-update this on changes
+});
+```
 
-    amount DECIMAL(10, 2) NOT NULL,
-    units_consumed INTEGER NOT NULL,
+### 1.3 Bills Table
 
-    -- Tariff Snapshot (store rate used at time of bill)
-    tariff_snapshot JSONB,
+```typescript
+// schema.ts
+export const bills = pgTable('bills', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id),
 
-    is_paid BOOLEAN DEFAULT FALSE,
-    paid_date DATE,
+  billNumber: varchar('bill_number', { length: 50 }),
+  billingPeriod: varchar('billing_period', { length: 7 }), // "2023-10"
+  dueDate: date('due_date'),
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  unitsConsumed: integer('units_consumed').notNull(),
 
--- Sync State (Optional, for conflict resolution)
--- Used to track the last modification time for efficient syncing
-CREATE INDEX IF NOT EXISTS idx_readings_updated_at ON readings(updated_at);
+  // Payment Status
+  // 'isPaid' is derived: (paidDate !== null)
+  paidDate: date('paid_date'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
 ```
 
 ## 2. Local Room Database (Kotlin)
 
-The local entities should mirror the remote schema but include sync-specific fields.
+The local entities mirror the remote schema but track sync state.
 
 ```kotlin
 @Entity(tableName = "readings")
@@ -74,30 +78,16 @@ data class ReadingEntity(
     val groundFloorReading: Int,
     val firstFloorReading: Int,
     val notes: String?,
+    // No totalConsumption stored locally either, computed in Domain/UI layer.
 
     // Sync Status
     val isDirty: Boolean = false, // True if modified locally and not yet pushed
     val lastSyncedAt: Long? = null
 )
-
-@Entity(tableName = "bills")
-data class BillEntity(
-    @PrimaryKey val id: String,
-    val billNumber: String?,
-    val billingPeriod: String,
-    val amount: Double,
-    val isDirty: Boolean = false
-)
 ```
 
-## 3. Sync Protocol
+## 3. Migration Strategy (Drizzle)
 
-### "Push" (Local -> Remote)
-1.  Select all `ReadingEntity` where `isDirty == true`.
-2.  For each, perform `INSERT` or `UPDATE` on Neon.
-3.  If successful, set `isDirty = false`.
-
-### "Pull" (Remote -> Local)
-1.  Fetch `MAX(updated_at)` from local DB.
-2.  Query Neon: `SELECT * FROM readings WHERE updated_at > :localMax`.
-3.  Insert/Update these records in Local DB.
+*   We will use `drizzle-kit` to generate SQL migrations.
+*   Command: `pnpm drizzle-kit generate:pg`
+*   Command: `pnpm drizzle-kit push:pg` (or run migrations via code)
