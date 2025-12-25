@@ -56,3 +56,11 @@ iosApp/Pods
 # iOS
 *.mobileprovision
 *.p12
+
+# Node
+node_modules/
+server/node_modules/
+dist/
+.env
+.env.test
+.env.production
